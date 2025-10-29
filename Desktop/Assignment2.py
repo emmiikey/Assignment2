@@ -1,5 +1,6 @@
 from enum import Enum, auto
 
+
 class TokenType(Enum):
     NUMBER = auto()
     IDENT  = auto()
@@ -12,7 +13,7 @@ class TokenType(Enum):
     LET    = auto()   
     LPAREN = auto()
     RPAREN = auto()   
-    EOF    = auto() 
+    EOF    = auto() #end of input
 
 
 class Token:
@@ -23,6 +24,9 @@ class Token:
     def __repr__(self):
         return self.type.name if self.value is None else f"{self.type.name}({self.value})"
 
+
+#this section maps specific UNICODE characters to token types to recognise
+#single -character symbols quickly
 SINGLE = {
     '\u002B': TokenType.PLUS,    # +
     '\u2212': TokenType.MINUS,   # − 
@@ -38,13 +42,12 @@ SINGLE = {
 def _is_ascii_letter(ch):
     return ('A' <= ch <= 'Z') or ('a' <= ch <= 'z')
 
-
-
 def _is_ascii_digit(ch):
     return '0' <= ch <= '9'
 
 class Lexer:
     @staticmethod
+    #loops through input string character by characer to decide what each part represents and collects tokens
     def tokenize(src: str):
         i, n = 0, len(src)
         out = []
@@ -52,10 +55,12 @@ class Lexer:
         while i < n:
             ch = src[i]
 
+            #skip whitespace
             if ch.isspace():
                 i += 1
                 continue
 
+            #recognise single character tokens
             ttype = SINGLE.get(ch)
             if ttype is not None:
                 out.append(Token(ttype))
@@ -71,7 +76,7 @@ class Lexer:
                 out.append(Token(TokenType.NUMBER, int(src[start:i])))
                 continue
 
-            # IDENT: [A-Za-z]*
+            # IDENTIFIERS: [A-Za-z][A-Za-z0-9]*
             if _is_ascii_letter(ch):
                 start = i
                 i += 1
@@ -80,11 +85,63 @@ class Lexer:
                 out.append(Token(TokenType.IDENT, src[start:i]))
                 continue
 
-            i += 1
-            continue
+            if ch == '-' or ch == 'x': 
+                raise ValueError("Incorrect Operator Used")
+            raise ValueError("Unknown Character")
 
+        #end of input
         out.append(Token(TokenType.EOF))
         return out
+
+#records grammar so parser can lookup correct number from table    
+GRAMMAR = {
+    1:  ("S", ["E"]),
+    2:  ("E", [TokenType.NUMBER]),
+    3:  ("E", [TokenType.IDENT]),
+    4:  ("E", [TokenType.LPAREN, "P", TokenType.RPAREN]),
+    5:  ("P", [TokenType.PLUS,  "E", "E"]),
+    6:  ("P", [TokenType.MINUS, "E", "E"]),
+    7:  ("P", [TokenType.MULT,  "E", "E"]),
+    8:  ("P", [TokenType.EQUALS,"E", "E"]),
+    9:  ("P", [TokenType.COND,  "E", "E", "E"]),
+    10: ("P", [TokenType.LAMBDA, TokenType.IDENT, "E"]),
+    11: ("P", [TokenType.LET,    TokenType.IDENT, "E", "E"]),
+    12: ("P", ["E", "E'"]),
+    13: ("E'", ["E", "E'"]),
+    14: ("E'", []),  # ε
+}
+
+
+TABLE = {
+    # Row S
+    ("S", TokenType.NUMBER): 1,
+    ("S", TokenType.IDENT):  1,
+    ("S", TokenType.LPAREN): 1,
+
+    # Row E
+    ("E", TokenType.NUMBER): 2,
+    ("E", TokenType.IDENT):  3,
+    ("E", TokenType.LPAREN): 4,
+
+    # Row P
+    ("P", TokenType.NUMBER): 12,  
+    ("P", TokenType.IDENT):  12,   
+    ("P", TokenType.LPAREN): 12,   
+    ("P", TokenType.PLUS):   5,
+    ("P", TokenType.MINUS):  6,
+    ("P", TokenType.MULT):   7,
+    ("P", TokenType.EQUALS): 8,
+    ("P", TokenType.COND):   9,
+    ("P", TokenType.LAMBDA): 10,
+    ("P", TokenType.LET):    11,
+
+    # Row E'
+    ("E'", TokenType.NUMBER): 13,
+    ("E'", TokenType.IDENT):  13,
+    ("E'", TokenType.LPAREN): 13,
+    ("E'", TokenType.RPAREN): 14, 
+}
+
 
 if __name__ == "__main__":
     print(Lexer.tokenize("42y"))
