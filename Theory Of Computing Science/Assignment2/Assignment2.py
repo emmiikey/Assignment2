@@ -161,7 +161,7 @@ def _error_token(token_check: 'Token') -> str:
 
 
 # This function implements the standard parsing algorithm that is predictive and uses the table above.
-# NOTE: this current implementation does build a parse tree yet (that will be completed in in part B.3). 
+# NOTE: this current implementation doesnt build a parse tree yet (that will be completed in in part B.3). 
 def parse(tokens):
     
     i = 0
@@ -193,14 +193,20 @@ def parse(tokens):
                     case_error = _error_token(tokens[i])
                 else:
                     case_error = "EOF"
-                raise SyntaxError(f"Syntax error: there was an unexpected end of input which was {case_error}")
+                raise SyntaxError(f"Syntax error: expected end of input but saw extra input which was {case_error}")
 
             # But if the top is actually a real terminal, we match the current token
             if current_token == top_of_stack:
                 i += 1
                 continue
             
-            # error case check (wont add now, only add if needed later)
+            # error case check: being added now since we need to check if the top is a real terminal
+            # but it may not match the current token
+            if i < len(tokens):
+                case_error = _error_token(tokens[i])
+            else:
+                case_error = "EOF"
+            raise SyntaxError(f"Syntax Error: expected the top of the stack but got a different expected token, {case_error}")
         
         # Case (2): the top of the stack is a non terminal
         else:
@@ -217,7 +223,7 @@ def parse(tokens):
                 raise SyntaxError(f"Syntax Error: no rule for the current top of stack")
             
             # grabbing the chosen production
-            rhs = GRAMMAR[production_number]
+            rhs = GRAMMAR[production_number][1]
 
             # we save the production number that we will be using
             added_production.append(production_number)
@@ -226,15 +232,6 @@ def parse(tokens):
             # this is important so that the leftmost sybmol is processed next
             for token_symbol in reversed(rhs):
                 grammar_stack.append(token_symbol)
-
-
-
-
-
-
-
-
-                
 
 
 if __name__ == "__main__":
