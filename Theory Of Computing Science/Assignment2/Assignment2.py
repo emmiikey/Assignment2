@@ -146,11 +146,13 @@ TABLE = {
 
 # Helper Functions to allow parse to work properly
 # Helper function (1):
+# \\\ this function is for the "B.2" part of the implemenation ///
 def _terminal_check(token_symbol): 
     # terminals in this case are TokenType values or the special '$' sentinel
     return isinstance(token_symbol, TokenType) or token_symbol == '$'
 
 # Helper Function (2):
+# \\\ this function is for the "B.2" part of the implemenation ///
 def _error_token(token_check: 'Token') -> str:
     # These are token that are readable to work with error messages
     if token_check.type == TokenType.IDENT:
@@ -159,14 +161,121 @@ def _error_token(token_check: 'Token') -> str:
         return f"NUMBER({token_check.value})"
     return token_check.type.name
 
+# Helper Function (3):
+# \\\ this helper function is for the "B.3 parse tree output" part of the implementation ///
+# helps push the build marker and rhs
+def _push_build_and_rhs(grammar_stack, production_number, rhs):
+    # a BUILD marker is placed under the rhs so it will be popped
+    # after all rhs symbols have been matched and their values have been pushed
+    # onto a different stack
+    grammar_stack.append(('BUILD', production_number))
+    for token_symbol in reversed(rhs):
+        grammar_stack.append(token_symbol)
+
+# Helper Function (4):
+# \\\ this helper function is for the "B.3 parse tree output" part of the implementation ///
+# helps perform the actual tree building
+def _reduce_node(production_number, tree_stack):
+    # based on the given production number, we pop the necessary values from the tree
+    # stack and push the node back 
+
+    # Case (1): S to E
+    if production_number == 1:
+        e = tree_stack.pop()
+        tree_stack.append(e)
+    
+    # Case (2): E to NUMBER
+    elif production_number == 2:
+        # since the numbers value is already on the stack, there is nothing to change
+        pass
+
+    # Case (3): E to IDENT
+    elif production_number == 3:
+        # IDENT value is already on the stack, so nothing that needs to be changed
+        pass
+
+    # Case (4): E to 'P'
+    elif production_number == 4:
+        p = tree_stack.pop()
+        tree_stack.append(p)
+    
+    # Case (5): E to PLUS E E
+    elif production_number == 5:
+        second_e = tree_stack.pop()
+        first_e = tree_stack.pop()
+        tree_stack.append(['PLUS', first_e, second_e])
+
+    # Case (6): P to MINUS E E
+    elif production_number == 6:
+        second_e = tree_stack.pop()
+        first_e = tree_stack.pop()
+        tree_stack.append(['MINUS', first_e, second_e])
+    
+    # Case (7): P to MULT E E
+    elif production_number == 7:
+        second_e = tree_stack.pop()
+        first_e = tree_stack.pop()
+        tree_stack.append(['MULT', first_e, second_e])
+
+    # Case (8): P to EQUALS E E
+    elif production_number == 8:
+        second_e = tree_stack.pop()
+        first_e = tree_stack.pop()
+        tree_stack.append(['EQUALS', first_e, second_e])
+
+    # Case (9): P to COND E E E
+    elif production_number == 9:
+        third_e = tree_stack.pop()
+        second_e = tree_stack.pop()
+        first_e = tree_stack.pop()
+        tree_stack.append(['COND', first_e, second_e, third_e])
+    
+    # Case (10): P to LAMBDA IDENT E
+    elif production_number == 10:
+        e = tree_stack.pop()
+        ident = tree_stack.pop()
+        tree_stack.append(['LAMBDA', ident, e])
+    
+    # Case (11): P to LET IDENT E E
+    elif production_number == 11:
+        second_e = tree_stack.pop()
+        first_e = tree_stack.pop()
+        ident = tree_stack.pop()
+        tree_stack.append(['LET', ident, first_e, second_e])
+    
+    # Case (12): P to E E'
+    elif production_number == 12:
+        e_list = tree_stack.pop()
+        prev_e = tree_stack.pop()
+        if len(e_list) == 0:
+            tree_stack.append(prev_e)
+        else:
+            tree_node = ['APPLY', prev_e]
+            tree_node.extend(e_list)
+            tree_stack.append(tree_node)
+    
+    # Case (13): E' to E E'
+    elif production_number == 13:
+        second_e = tree_stack.pop()
+        first_e = tree_stack.pop()
+        final_list = [first_e]
+        final_list.extend(second_e)
+        tree_stack.append(final_list)
+    
+    # Case (14): E to ε
+    elif production_number == 14:
+        tree_stack.append([])
+        
 
 # This function implements the standard parsing algorithm that is predictive and uses the table above.
 # NOTE: this current implementation doesnt build a parse tree yet (that will be completed in in part B.3). 
-def parse(tokens):
-    
+def parse(tokens):    
     i = 0
 
     grammar_stack = ['$', 'S']
+
+    # needed for part b.3 part tree output implementation
+    tree_stack = []
 
     added_production = []
 
@@ -183,11 +292,17 @@ def parse(tokens):
         top_of_stack = grammar_stack.pop()
         current_token = current_token_check()
 
+        # Special case for build tree
+        if isinstance(top_of_stack, tuple) and len(top_of_stack) == 2 and top_of_stack[0] == 'BUILD':
+            prod_index = top_of_stack[1]
+            _reduce_node(prod_index, tree_stack)
+            continue
+    
         # Case (1): the top of the stack is a terminal or '$'
         if _terminal_check(top_of_stack):
             if top_of_stack == '$':
                 if current_token == TokenType.EOF:
-                    return added_production
+                    return tree_stack.pop()
                 # Error case: in case there is some sort of unexpected input
                 if i < len(tokens):
                     case_error = _error_token(tokens[i])
@@ -195,8 +310,12 @@ def parse(tokens):
                     case_error = "EOF"
                 raise SyntaxError(f"Syntax error: expected end of input but saw extra input which was {case_error}")
 
-            # But if the top is actually a real terminal, we match the current token
             if current_token == top_of_stack:
+                if top_of_stack == TokenType.NUMBER:
+                    tree_stack.append(tokens[i].value)
+                elif top_of_stack == TokenType.IDENT:
+                    tree_stack.append(tokens[i].value)
+                # But if the top is actually a real terminal, we match the current token
                 i += 1
                 continue
             
@@ -220,7 +339,7 @@ def parse(tokens):
                     case_error = _error_token(tokens[i])
                 else:
                     case_error = "EOF"
-                raise SyntaxError(f"Syntax Error: no rule for the current top of stack")
+                raise SyntaxError(f"Syntax Error: no rule for the current top of stack, instead we saw {case_error}")
             
             # grabbing the chosen production
             rhs = GRAMMAR[production_number][1]
@@ -228,10 +347,7 @@ def parse(tokens):
             # we save the production number that we will be using
             added_production.append(production_number)
 
-            # Finally, we apply the production by pushing the rhs onto the stack in reverse order
-            # this is important so that the leftmost sybmol is processed next
-            for token_symbol in reversed(rhs):
-                grammar_stack.append(token_symbol)
+            _push_build_and_rhs(grammar_stack, production_number, rhs)
 
 
 if __name__ == "__main__":
