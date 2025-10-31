@@ -144,9 +144,97 @@ TABLE = {
     ("E'",TokenType.RPAREN): 14, 
 }
 
+# Helper Functions to allow parse to work properly
+# Helper function (1):
+def _terminal_check(token_symbol): 
+    # terminals in this case are TokenType values or the special '$' sentinel
+    return isinstance(token_symbol, TokenType) or token_symbol == '$'
+
+# Helper Function (2):
+def _error_token(token_check: 'Token') -> str:
+    # These are token that are readable to work with error messages
+    if token_check.type == TokenType.IDENT:
+        return f"IDENT({token_check.value})"
+    if token_check.type == TokenType.NUMBER:
+        return f"NUMBER({token_check.value})"
+    return token_check.type.name
+
+
+# This function implements the standard parsing algorithm that is predictive and uses the table above.
+# NOTE: this current implementation does build a parse tree yet (that will be completed in in part B.3). 
 def parse(tokens):
+    
+    i = 0
+
+    grammar_stack = ['$', 'S']
+
+    added_production = []
+
+    # quick getter function that quickly checks what the current token type is that 
+    # is currently being looked at
+    def current_token_check():
+        if i < len(tokens):
+            return tokens[i].type
+        else:
+            return TokenType.EOF
+
+    # Main Stack Loop
+    while grammar_stack:
+        top_of_stack = grammar_stack.pop()
+        current_token = current_token_check()
+
+        # Case (1): the top of the stack is a terminal or '$'
+        if _terminal_check(top_of_stack):
+            if top_of_stack == '$':
+                if current_token == TokenType.EOF:
+                    return added_production
+                # Error case: in case there is some sort of unexpected input
+                if i < len(tokens):
+                    case_error = _error_token(tokens[i])
+                else:
+                    case_error = "EOF"
+                raise SyntaxError(f"Syntax error: there was an unexpected end of input which was {case_error}")
+
+            # But if the top is actually a real terminal, we match the current token
+            if current_token == top_of_stack:
+                i += 1
+                continue
+            
+            # error case check (wont add now, only add if needed later)
+        
+        # Case (2): the top of the stack is a non terminal
+        else:
+            # here we check to see what production needs to be used
+            prod_index = (top_of_stack, current_token)
+            production_number = TABLE.get(prod_index)
+
+            # Error case: if there is no apparant table entry, this is an error
+            if production_number is None:
+                if i < len(tokens):
+                    case_error = _error_token(tokens[i])
+                else:
+                    case_error = "EOF"
+                raise SyntaxError(f"Syntax Error: no rule for the current top of stack")
+            
+            # grabbing the chosen production
+            rhs = GRAMMAR[production_number]
+
+            # we save the production number that we will be using
+            added_production.append(production_number)
+
+            # Finally, we apply the production by pushing the rhs onto the stack in reverse order
+            # this is important so that the leftmost sybmol is processed next
+            for token_symbol in reversed(rhs):
+                grammar_stack.append(token_symbol)
 
 
+
+
+
+
+
+
+                
 
 
 if __name__ == "__main__":
