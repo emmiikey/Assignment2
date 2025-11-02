@@ -1,3 +1,5 @@
+# Part B: Implementation (Lexer, Parse Table, Parse tree)
+
 from enum import Enum, auto
 
 
@@ -268,7 +270,7 @@ def _reduce_node(production_number, tree_stack):
         
 
 # This function implements the standard parsing algorithm that is predictive and uses the table above.
-# NOTE: this current implementation doesnt build a parse tree yet (that will be completed in in part B.3). 
+# NOTE: this current implementation includes both the working parts of Part B.2 and B.3. 
 def parse(tokens):    
     i = 0
 
